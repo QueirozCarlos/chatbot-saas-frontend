@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
+interface Category {
+  id: number;
+  name: string;
+}
+
 interface NewProductModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,9 +15,10 @@ interface NewProductModalProps {
     price: number;
     category: string;
   }) => void;
+  categories: Category[];
 }
 
-export default function NewProductModal({ isOpen, onClose, onSave }: NewProductModalProps) {
+export default function NewProductModal({ isOpen, onClose, onSave, categories }: NewProductModalProps) {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [price, setPrice] = useState(0);
@@ -81,13 +87,19 @@ export default function NewProductModal({ isOpen, onClose, onSave }: NewProductM
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Categoria
             </label>
-            <input
-              type="text"
+            <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
-            />
+            >
+              <option value="">Selecione uma categoria</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

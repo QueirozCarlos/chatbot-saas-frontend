@@ -20,7 +20,7 @@ export default function Login() {
 
     try {
       await login(username, password);
-      navigate('/dashboard');
+      navigate('/Home');
     } catch (err) {
       setError('Usuário ou senha inválidos');
     } finally {
@@ -34,8 +34,8 @@ export default function Login() {
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 bg-black/30" />
         <div className="relative z-10 text-white text-center p-8">
-          <h1 className="text-4xl font-bold mb-4">Bem-vindo ao Sistema</h1>
-          <p className="text-xl opacity-90">Gerencie seu estoque de forma eficiente e intuitiva</p>
+          <h1 className="text-4xl font-bold mb-4">Bem-vindo ao ShopSync</h1>
+          <p className="text-xl opacity-90">Transforme seu estoque com nossas soluções!</p>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/50 to-transparent" />
       </div>
@@ -69,7 +69,7 @@ export default function Login() {
                 <Package className="h-12 w-12 text-gray-800 dark:text-white" />
               </div>
             </div>
-            <h2 className="mt-6 text-3xl font-bold text-gray-800 dark:text-white">Sistema de Estoque</h2>
+            <h2 className="mt-6 text-3xl font-bold text-gray-800 dark:text-white">ShopSync Sistema</h2>
             <p className="mt-2 text-sm text-gray-600 dark:text-white/80">Faça login para acessar o sistema</p>
           </div>
           
@@ -115,13 +115,12 @@ export default function Login() {
             </div>
 
             <div className="flex items-center justify-end">
-              <button
-                type="button"
-                onClick={() => alert('Funcionalidade em desenvolvimento')}
+              <Link
+                to="/forgot-password"
                 className="text-sm text-gray-600 hover:text-gray-800 dark:text-white/80 dark:hover:text-white focus:outline-none focus:underline"
               >
                 Esqueceu sua senha?
-              </button>
+              </Link>
             </div>
 
             <div>

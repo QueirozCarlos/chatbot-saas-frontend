@@ -5,6 +5,8 @@ import Sidebar from '../components/Sidebar';
 import NewProductModal from '../components/NewProductModal';
 import NewSaleModal from '../components/NewSaleModal';
 import ReportsModal from '../components/ReportsModal';
+import CustomerManagementModal from '../components/CustomerManagementModal';
+import QuickActions from '../components/QuickActions';
 import { api } from '../contexts/AuthContext';
 
 interface StatCardProps {
@@ -46,6 +48,7 @@ export default function Home() {
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
   const [isNewSaleModalOpen, setIsNewSaleModalOpen] = useState(false);
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
@@ -122,7 +125,6 @@ export default function Home() {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Visão Geral</h1>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
@@ -195,7 +197,10 @@ export default function Home() {
                     Nova Venda
                   </span>
                 </button>
-                <button className="p-4 bg-purple-50 dark:bg-purple-900/50 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors">
+                <button 
+                  onClick={() => setIsCustomerModalOpen(true)}
+                  className="p-4 bg-purple-50 dark:bg-purple-900/50 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900 transition-colors"
+                >
                   <Users className="h-6 w-6 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white block text-center">
                     Gerenciar Clientes
@@ -232,6 +237,13 @@ export default function Home() {
         isOpen={isReportsModalOpen}
         onClose={() => setIsReportsModalOpen(false)}
       />
+
+      <CustomerManagementModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
+      />
+
+      <QuickActions />
     </div>
   );
 }

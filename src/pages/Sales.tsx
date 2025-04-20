@@ -288,10 +288,28 @@ export default function Sales() {
                     </th>
                     <th 
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('sellerName')}
+                    >
+                      <div className="flex items-center">
+                        Vendedor
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
                       onClick={() => handleSort('quantity')}
                     >
                       <div className="flex items-center">
                         Quantidade
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
+                    </th>
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('price')}
+                    >
+                      <div className="flex items-center">
+                        Preço Unit.
                         <ArrowUpDown className="ml-1 h-4 w-4" />
                       </div>
                     </th>
@@ -329,7 +347,20 @@ export default function Sales() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 dark:text-gray-300">
+                          {sale.sellerName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-gray-300">
                           {sale.quantity}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-gray-300">
+                          {sale.price.toLocaleString('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                          })}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

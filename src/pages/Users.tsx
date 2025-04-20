@@ -71,7 +71,7 @@ export default function Users() {
                   id="menu-button"
                   onMouseEnter={() => setIsHovering(true)}
                   onMouseLeave={() => setIsHovering(false)}
-                  className="fixed left-0 top-0 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-50"
+                  className="fixed left-0 top-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-50"
                   aria-label={isSidebarOpen ? 'Fechar menu' : 'Abrir menu'}
                 >
                   <SidebarSimple className="h-6 w-6 text-gray-600 dark:text-gray-300" weight="duotone" />

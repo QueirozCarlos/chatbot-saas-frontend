@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Package, LogOut, Plus, Search, RefreshCw, DollarSign, BarChart, LineChart, PieChart, AlertCircle } from 'lucide-react';
+import { Package, LogOut, Plus, Search, RefreshCw, DollarSign, BarChart, LineChart, PieChart, AlertCircle, ArrowUpDown, Tag, PackagePlus } from 'lucide-react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import NewProductModal from '../components/NewProductModal';
-import NewSaleModal from '../components/NewSaleModal';
+import CategoryModal from '../components/CategoryModal';
 import ChatbotButton from '../components/ChatbotButton';
 import Sidebar from '../components/Sidebar';
 import { api } from '../contexts/AuthContext';
+import StockMovementModal from '../components/StockMovementModal';
 
 interface Product {
   id: number;
@@ -17,38 +18,42 @@ interface Product {
   category: string;
 }
 
-interface Sale {
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface StockMovement {
   id: number;
   productId: number;
-  productName: string;
+  type: 'entrada' | 'saida' | 'transferencia';
   quantity: number;
-  price: number;
-  total: number;
   date: string;
-  customerName: string;
-  sellerName: string;
+  fromLocation?: string;
+  toLocation?: string;
+  notes?: string;
 }
 
 export default function Dashboard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
-  const [isNewSaleModalOpen, setIsNewSaleModalOpen] = useState(false);
+  const [isStockMovementModalOpen, setIsStockMovementModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'products' | 'sales'>('products');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Calculate summary statistics
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const totalItems = sales.reduce((sum, sale) => sum + sale.quantity, 0);
-  const averageTicket = sales.length > 0 ? totalSales / sales.length : 0;
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [lowStockAlert, setLowStockAlert] = useState<number>(5);
+  
+  // Sorting states for products
+  const [productSortField, setProductSortField] = useState<keyof Product>('name');
+  const [productSortDirection, setProductSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -64,8 +69,18 @@ export default function Dashboard() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories');
+      setCategories(response.data);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -77,7 +92,7 @@ export default function Dashboard() {
     } else {
       const timeout = window.setTimeout(() => {
         setIsSidebarOpen(false);
-      }, 300); // Delay before closing
+      }, 300);
       setHoverTimeout(timeout);
     }
 
@@ -115,45 +130,65 @@ export default function Dashboard() {
     }
   };
 
+  const handleAddStockMovement = async (movement: Omit<StockMovement, 'id'>) => {
+    try {
+      const response = await api.post('/stock-movements', movement);
+      setStockMovements([...stockMovements, response.data]);
+      
+      // Atualizar quantidade do produto
+      const updatedProducts = products.map(product => {
+        if (product.id === movement.productId) {
+          const newQuantity = movement.type === 'entrada' 
+            ? product.quantity + movement.quantity
+            : movement.type === 'saida'
+              ? product.quantity - movement.quantity
+              : product.quantity;
+          return { ...product, quantity: newQuantity };
+        }
+        return product;
+      });
+      setProducts(updatedProducts);
+      
+      setIsStockMovementModalOpen(false);
+    } catch (err) {
+      console.error('Error adding stock movement:', err);
+      setError('Erro ao adicionar movimentação. Por favor, tente novamente.');
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchProducts();
     setIsRefreshing(false);
   };
 
-  const handleAddSale = (newSale: Omit<Sale, 'id' | 'productName' | 'total'>) => {
-    const product = products.find(p => p.id === newSale.productId);
-    
-    if (!product || product.quantity < newSale.quantity) {
-      setError('Quantidade insuficiente em estoque!');
-      return;
-    }
-
-    const total = newSale.quantity * newSale.price;
-    
-    const saleWithId: Sale = {
-      ...newSale,
-      id: sales.length + 1,
-      productName: product.name,
-      total: total
-    };
-
-    setSales([...sales, saleWithId]);
-
-    setProducts(products.map(product => {
-      if (product.id === newSale.productId) {
-        return {
-          ...product,
-          quantity: product.quantity - newSale.quantity,
-        };
-      }
-      return product;
-    }));
-  };
-
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleProductSort = (field: keyof Product) => {
+    if (productSortField === field) {
+      setProductSortDirection(productSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setProductSortField(field);
+      setProductSortDirection('asc');
+    }
+  };
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    const aValue = a[productSortField];
+    const bValue = b[productSortField];
+    
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return productSortDirection === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+    
+    return productSortDirection === 'asc'
+      ? Number(aValue) - Number(bValue)
+      : Number(bValue) - Number(aValue);
+  });
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
@@ -192,61 +227,36 @@ export default function Dashboard() {
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total de Vendas</p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {totalSales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Total de Produtos</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{products.length}</p>
                 </div>
-                <BarChart className="h-8 w-8 text-blue-600 dark:text-blue-500" />
+                <Package className="h-8 w-8 text-blue-600 dark:text-blue-500" />
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Itens Vendidos</p>
-                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{totalItems}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Valor Total em Estoque</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {products.reduce((sum, product) => sum + (product.price * product.quantity), 0).toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL'
+                    })}
+                  </p>
                 </div>
-                <LineChart className="h-8 w-8 text-green-600 dark:text-green-500" />
+                <DollarSign className="h-8 w-8 text-purple-600 dark:text-purple-500" />
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Ticket Médio</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Produtos com Estoque Baixo</p>
                   <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {averageTicket.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    {products.filter(p => p.quantity <= lowStockAlert).length}
                   </p>
                 </div>
-                <PieChart className="h-8 w-8 text-purple-600 dark:text-purple-500" />
+                <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-500" />
               </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="mb-8">
-            <div className="border-b border-gray-200 dark:border-gray-700">
-              <nav className="-mb-px flex space-x-8">
-                <button
-                  onClick={() => setActiveTab('products')}
-                  className={`${
-                    activeTab === 'products'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-500'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  Produtos
-                </button>
-                <button
-                  onClick={() => setActiveTab('sales')}
-                  className={`${
-                    activeTab === 'sales'
-                      ? 'border-blue-500 text-blue-600 dark:text-blue-500'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  Vendas
-                </button>
-              </nav>
             </div>
           </div>
 
@@ -272,18 +282,18 @@ export default function Dashboard() {
                 Atualizar
               </button>
               <button
-                onClick={() => setIsNewSaleModalOpen(true)}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                <DollarSign className="h-5 w-5 mr-2" />
-                Nova Venda
-              </button>
-              <button
                 onClick={() => setIsNewProductModalOpen(true)}
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 <Plus className="h-5 w-5 mr-2" />
                 Novo Produto
+              </button>
+              <button
+                onClick={() => setIsStockMovementModalOpen(true)}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                <PackagePlus className="h-5 w-5 mr-2" />
+                Movimentação
               </button>
             </div>
           </div>
@@ -298,140 +308,97 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'products' ? (
-            /* Products Table */
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-              {isLoading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-                  <p className="mt-4 text-gray-500 dark:text-gray-400">Carregando produtos...</p>
-                </div>
-              ) : (
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Produto
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Categoria
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Quantidade
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Preço
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredProducts.map((product) => (
-                      <tr key={product.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{product.category}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">{product.quantity}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">
-                            {product.price.toLocaleString('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL'
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
-                            Editar
-                          </button>
-                          <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
-                            Excluir
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          ) : (
-            /* Sales Table */
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          {/* Products Table */}
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Data
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleProductSort('name')}
+                    >
+                      <div className="flex items-center">
+                        Produto
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Produto
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleProductSort('category')}
+                    >
+                      <div className="flex items-center">
+                        Categoria
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Cliente
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleProductSort('quantity')}
+                    >
+                      <div className="flex items-center">
+                        Quantidade
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Vendedor
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleProductSort('price')}
+                    >
+                      <div className="flex items-center">
+                        Preço
+                        <ArrowUpDown className="ml-1 h-4 w-4" />
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Quantidade
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Preço Unit.
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Total
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Ações
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {sales.map((sale) => (
-                    <tr key={sale.id}>
+                  {sortedProducts.map((product) => (
+                    <tr 
+                      key={product.id}
+                      className={product.quantity <= lowStockAlert ? 'bg-red-50 dark:bg-red-900/20' : ''}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{product.category}</div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {new Date(sale.date).toLocaleDateString('pt-BR')}
+                          {product.quantity}
+                          {product.quantity <= lowStockAlert && (
+                            <span className="ml-2 text-red-600 dark:text-red-400">
+                              <AlertCircle className="h-4 w-4 inline" />
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">{sale.productName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">{sale.customerName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">{sale.sellerName}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-white">{sale.quantity}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {sale.price.toLocaleString('pt-BR', {
+                          {product.price.toLocaleString('pt-BR', {
                             style: 'currency',
                             currency: 'BRL'
                           })}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {sale.total.toLocaleString('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                          })}
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
+                          Editar
+                        </button>
+                        <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
+                          Excluir
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </main>
       </div>
 
@@ -439,12 +406,13 @@ export default function Dashboard() {
         isOpen={isNewProductModalOpen}
         onClose={() => setIsNewProductModalOpen(false)}
         onSave={handleAddProduct}
+        categories={categories}
       />
 
-      <NewSaleModal
-        isOpen={isNewSaleModalOpen}
-        onClose={() => setIsNewSaleModalOpen(false)}
-        onSave={handleAddSale}
+      <StockMovementModal
+        isOpen={isStockMovementModalOpen}
+        onClose={() => setIsStockMovementModalOpen(false)}
+        onSave={handleAddStockMovement}
         products={products}
       />
 
