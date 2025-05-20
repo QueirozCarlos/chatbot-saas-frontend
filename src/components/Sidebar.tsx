@@ -37,7 +37,7 @@ export default function Sidebar({ isOpen, onClose, onHover }: SidebarProps) {
   }, [isOpen]);
 
   const menuItems = [
-    { path: '/', icon: Home, label: 'Home' },
+    { path: '/home', icon: Home, label: 'Home' },
     { path: '/dashboard', icon: BarChart2, label: 'Dashboard' },
     { path: '/sales', icon: ShoppingCart, label: 'Vendas' },
     { path: '/reports', icon: FileText, label: 'Relatórios' },

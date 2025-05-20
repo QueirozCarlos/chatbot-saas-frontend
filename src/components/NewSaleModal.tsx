@@ -1,22 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { productService, Product } from '../services/productService';
 
 interface NewSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (sale: {
-    customerName: string;
+    productId: number;
     productName: string;
     quantity: number;
-    total: number;
+    totalValue: number;
+    saleDate: string;
+    customerName: string;
+    sellerName: string;
   }) => void;
 }
 
 export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalProps) {
   const [customerName, setCustomerName] = useState('');
-  const [productName, setProductName] = useState('');
+  const [sellerName, setSellerName] = useState('');
+  const [productId, setProductId] = useState<number>(0);
   const [quantity, setQuantity] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [totalValue, setTotalValue] = useState(0);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const availableProducts = await productService.getAvailableProducts();
+        setProducts(availableProducts);
+      } catch (err) {
+        setError('Erro ao carregar produtos. Por favor, tente novamente.');
+        console.error('Error fetching products:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchProducts();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
@@ -34,18 +63,52 @@ export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalPr
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (selectedProduct && quantity > 0) {
+      setTotalValue(selectedProduct.price * quantity);
+    }
+  }, [selectedProduct, quantity]);
+
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = Number(e.target.value);
+    setProductId(selectedId);
+    const product = products.find(p => p.id === selectedId);
+    setSelectedProduct(product || null);
+  };
+
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newQuantity = Number(e.target.value);
+    if (selectedProduct && newQuantity > selectedProduct.stockQuantity) {
+      setError(`Quantidade máxima disponível: ${selectedProduct.stockQuantity}`);
+      return;
+    }
+    setError(null);
+    setQuantity(newQuantity);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (error) return;
+
+    const currentDate = new Date().toISOString();
+    
     onSave({
-      customerName,
-      productName,
+      productId,
+      productName: selectedProduct?.name || 'Produto não encontrado',
       quantity,
-      total,
+      totalValue,
+      saleDate: currentDate,
+      customerName,
+      sellerName,
     });
+    
+    // Reset form
     setCustomerName('');
-    setProductName('');
+    setSellerName('');
+    setProductId(0);
     setQuantity(1);
-    setTotal(0);
+    setTotalValue(0);
+    setSelectedProduct(null);
   };
 
   if (!isOpen) return null;
@@ -79,15 +142,40 @@ export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalPr
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Nome do Produto
+              Nome do Vendedor
             </label>
             <input
               type="text"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
+              value={sellerName}
+              onChange={(e) => setSellerName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Produto
+            </label>
+            {isLoading ? (
+              <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-700">
+                Carregando produtos...
+              </div>
+            ) : (
+              <select
+                value={productId}
+                onChange={handleProductChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                required
+              >
+                <option value="">Selecione um produto</option>
+                {products.map(product => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} - Estoque: {product.stockQuantity} - R$ {product.price.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -97,11 +185,15 @@ export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalPr
             <input
               type="number"
               value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
+              onChange={handleQuantityChange}
               min="1"
+              max={selectedProduct?.stockQuantity}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
+            {error && (
+              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
           </div>
 
           <div>
@@ -109,13 +201,10 @@ export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalPr
               Valor Total
             </label>
             <input
-              type="number"
-              value={total}
-              onChange={(e) => setTotal(Number(e.target.value))}
-              min="0"
-              step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              required
+              type="text"
+              value={totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-700 dark:text-white"
             />
           </div>
 
@@ -130,6 +219,7 @@ export default function NewSaleModal({ isOpen, onClose, onSave }: NewSaleModalPr
             <button
               type="submit"
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+              disabled={!!error}
             >
               Salvar
             </button>

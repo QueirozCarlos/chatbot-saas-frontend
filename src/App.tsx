@@ -11,6 +11,7 @@ import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -37,9 +38,9 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <PrivateRoute>
+                <ProtectedRoute>
                   <Dashboard />
-                </PrivateRoute>
+                </ProtectedRoute>
               }
             />
             <Route
@@ -74,7 +75,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
       </ThemeProvider>

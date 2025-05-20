@@ -3,36 +3,87 @@ import { DollarSign, Search, Plus, Filter, ArrowUpDown } from 'lucide-react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import NewSaleModal from '../components/NewSaleModal';
 import Sidebar from '../components/Sidebar';
-
-interface Product {
-  id: number;
-  name: string;
-  quantity: number;
-  price: number;
-  category: string;
-}
+import { useAuth } from '../contexts/AuthContext';
+import { salesService } from '../services/salesService';
+import { toast } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 
 interface Sale {
   id: number;
   productId: number;
   productName: string;
   quantity: number;
-  price: number;
-  total: number;
-  date: string;
+  totalValue: number;
+  saleDate: string;
+  customerName: string;
+  sellerName: string;
+  status?: string;
+}
+
+interface NewSale {
+  productId: number;
+  quantity: number;
+  totalValue: number;
+  saleDate: string;
   customerName: string;
   sellerName: string;
 }
 
 export default function Sales() {
+  const { api } = useAuth();
   const [isNewSaleModalOpen, setIsNewSaleModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<keyof Sale>('date');
+  const [sortField, setSortField] = useState<keyof Sale>('saleDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [dateFilter, setDateFilter] = useState('all');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isCancelling, setIsCancelling] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchSales();
+  }, [retryCount]);
+
+  const fetchSales = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      console.log('Iniciando busca de vendas...');
+      const response = await api.get('/sales');
+      console.log('Resposta da API:', response.data);
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('Dados inválidos recebidos da API:', response.data);
+        setError('Dados inválidos recebidos do servidor');
+        return;
+      }
+
+      const mappedSales = response.data.map((sale: any) => ({
+        id: sale.id,
+        productId: sale.productId,
+        quantity: parseInt(sale.quantity) || 0,
+        totalValue: parseFloat(sale.totalValue) || 0,
+        saleDate: sale.saleDate,
+        customerName: sale.customerName || 'Cliente não informado',
+        sellerName: sale.sellerName || 'Vendedor não informado',
+        productName: sale.productName || 'Produto não informado',
+        status: sale.status
+      }));
+
+      console.log('Vendas mapeadas:', mappedSales);
+      setSales(mappedSales);
+    } catch (err) {
+      console.error('Erro ao buscar vendas:', err);
+      setError('Erro ao carregar vendas. Por favor, tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isHovering) {
@@ -43,7 +94,7 @@ export default function Sales() {
     } else {
       const timeout = window.setTimeout(() => {
         setIsSidebarOpen(false);
-      }, 300); // Delay before closing
+      }, 300);
       setHoverTimeout(timeout);
     }
 
@@ -54,52 +105,66 @@ export default function Sales() {
     };
   }, [isHovering]);
 
-  // Mock data for demonstration
-  const [sales] = useState<Sale[]>([
-    {
-      id: 1,
-      productId: 1,
-      productName: "Notebook Dell",
-      quantity: 1,
-      price: 4500,
-      total: 4500,
-      date: "2024-03-20",
-      customerName: "João Silva",
-      sellerName: "Maria Santos"
-    },
-    {
-      id: 2,
-      productId: 2,
-      productName: "Mouse Wireless",
-      quantity: 2,
-      price: 89.90,
-      total: 179.80,
-      date: "2024-03-19",
-      customerName: "Pedro Oliveira",
-      sellerName: "Carlos Souza"
+  const handleAddSale = async (newSale: NewSale) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      console.log('Nova venda recebida do modal:', newSale);
+      
+      const response = await api.post('/sales', newSale);
+      console.log('Resposta da API ao adicionar venda:', response.data);
+      
+      const saleWithDefaults = {
+        ...response.data,
+        customerName: response.data.customerName || 'Cliente não informado',
+        sellerName: response.data.sellerName || 'Vendedor não informado',
+        productName: response.data.productName || 'Produto não informado'
+      };
+      
+      setSales([...sales, saleWithDefaults]);
+      setIsNewSaleModalOpen(false);
+    } catch (err) {
+      console.error('Erro ao adicionar venda:', err);
+      setError('Erro ao criar venda. Por favor, tente novamente.');
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
 
-  const [products] = useState<Product[]>([
-    { id: 1, name: 'Notebook Dell', quantity: 15, price: 4500, category: 'Eletrônicos' },
-    { id: 2, name: 'Mouse Wireless', quantity: 30, price: 89.90, category: 'Acessórios' }
-  ]);
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+  };
 
-  const handleAddSale = (newSale: Omit<Sale, 'id' | 'productName' | 'total'>) => {
-    // Here you would typically make an API call to save the sale
-    console.log('New sale:', newSale);
-    setIsNewSaleModalOpen(false);
+  const handleCancelSale = async (saleId: number) => {
+    try {
+      setIsCancelling(saleId);
+      const updatedSale = await salesService.cancelSale(saleId);
+      // Atualizar a venda na lista com o novo status
+      const updatedSales = sales.map(sale => 
+        sale.id === saleId ? { ...sale, status: 'CANCELED' } : sale
+      );
+      setSales(updatedSales);
+      toast.success('Venda cancelada com sucesso!');
+    } catch (error: any) {
+      console.error('Erro detalhado no cancelamento:', {
+        saleId,
+        error: error.message,
+        stack: error.stack
+      });
+      toast.error(error.message || 'Erro ao cancelar venda. Por favor, tente novamente.');
+    } finally {
+      setIsCancelling(null);
+    }
   };
 
   const filteredSales = sales.filter(sale => {
     const matchesSearch = 
-      sale.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.sellerName.toLowerCase().includes(searchTerm.toLowerCase());
 
     if (dateFilter === 'all') return matchesSearch;
     
-    const saleDate = new Date(sale.date);
+    const saleDate = new Date(sale.saleDate);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -135,7 +200,7 @@ export default function Sales() {
       : Number(bValue) - Number(aValue);
   });
 
-  const totalAmount = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
+  const totalAmount = filteredSales.reduce((sum, sale) => sum + sale.totalValue, 0);
   const totalItems = filteredSales.reduce((sum, sale) => sum + sale.quantity, 0);
 
   const handleSort = (field: keyof Sale) => {
@@ -148,7 +213,8 @@ export default function Sales() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+      <Toaster position="top-right" />
       <Sidebar 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
@@ -255,142 +321,148 @@ export default function Sales() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('date')}
-                    >
-                      <div className="flex items-center">
-                        Data
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('productName')}
-                    >
-                      <div className="flex items-center">
-                        Produto
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('customerName')}
-                    >
-                      <div className="flex items-center">
-                        Cliente
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('sellerName')}
-                    >
-                      <div className="flex items-center">
-                        Vendedor
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('quantity')}
-                    >
-                      <div className="flex items-center">
-                        Quantidade
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('price')}
-                    >
-                      <div className="flex items-center">
-                        Preço Unit.
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleSort('total')}
-                    >
-                      <div className="flex items-center">
-                        Total
-                        <ArrowUpDown className="ml-1 h-4 w-4" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredSales.map((sale) => (
-                    <tr key={sale.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-gray-300">
-                          {new Date(sale.date).toLocaleDateString('pt-BR')}
+            {isLoading ? (
+              <div className="p-8 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">Carregando vendas...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Tentar Novamente
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('saleDate')}
+                      >
+                        <div className="flex items-center">
+                          Data
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-300">
-                          {sale.productName}
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('customerName')}
+                      >
+                        <div className="flex items-center">
+                          Cliente
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-gray-300">
-                          {sale.customerName}
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('sellerName')}
+                      >
+                        <div className="flex items-center">
+                          Vendedor
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-gray-300">
-                          {sale.sellerName}
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('productName')}
+                      >
+                        <div className="flex items-center">
+                          Produto
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-gray-300">
-                          {sale.quantity}
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('quantity')}
+                      >
+                        <div className="flex items-center">
+                          Quantidade
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900 dark:text-gray-300">
-                          {sale.price.toLocaleString('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                          })}
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                        onClick={() => handleSort('totalValue')}
+                      >
+                        <div className="flex items-center">
+                          Total
+                          <ArrowUpDown className="ml-1 h-4 w-4" />
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-300">
-                          {sale.total.toLocaleString('pt-BR', {
-                            style: 'currency',
-                            currency: 'BRL'
-                          })}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
-                          Detalhes
-                        </button>
-                        <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
-                          Cancelar
-                        </button>
-                      </td>
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Ações
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredSales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-gray-300">
+                            {new Date(sale.saleDate).toLocaleDateString('pt-BR')}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-gray-300">
+                            {sale.customerName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-gray-300">
+                            {sale.sellerName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-gray-300">
+                            {sale.productName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900 dark:text-gray-300">
+                            {sale.quantity}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-300">
+                            {sale.totalValue.toLocaleString('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button 
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
+                            onClick={() => {/* TODO: Implementar detalhes */}}
+                          >
+                            Detalhes
+                          </button>
+                          <button 
+                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                            onClick={() => handleCancelSale(sale.id)}
+                            disabled={isCancelling === sale.id || sale.status === 'CANCELED'}
+                          >
+                            {isCancelling === sale.id ? 'Cancelando...' : 'Cancelar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           <NewSaleModal
             isOpen={isNewSaleModalOpen}
             onClose={() => setIsNewSaleModalOpen(false)}
             onSave={handleAddSale}
-            products={products}
           />
         </main>
       </div>

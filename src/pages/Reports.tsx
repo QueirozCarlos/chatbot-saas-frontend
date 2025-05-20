@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, LineChart, PieChart } from 'lucide-react';
+import { BarChart, LineChart, PieChart, Download, Package, Users, ShoppingCart } from 'lucide-react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import Sidebar from '../components/Sidebar';
+import { api } from '../contexts/AuthContext';
+import FloatActionButton from '../components/FloatActionButton';
 
 interface Sale {
   id: number;
@@ -48,6 +50,7 @@ export default function Reports() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   useEffect(() => {
     if (isHovering) {
@@ -99,6 +102,35 @@ export default function Reports() {
   const totalSales = mockSales.reduce((sum, sale) => sum + sale.total, 0);
   const totalItems = mockSales.reduce((sum, sale) => sum + sale.quantity, 0);
   const averageTicket = totalSales / mockSales.length;
+
+  const handleGenerateReport = async (type: 'vendas' | 'produtos' | 'clientes' | 'estoque') => {
+    setIsGeneratingReport(true);
+    try {
+      const response = await api.get(`/reports/${type}/download`, {
+        responseType: 'blob'
+      });
+      
+      // Create a URL for the blob
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      
+      // Create a link element
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `relatorio-${type}-${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      // Append to body, click and remove
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      // Clean up the URL
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error generating report:', err);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
@@ -200,6 +232,34 @@ export default function Reports() {
               ))}
             </div>
           </div>
+
+          <FloatActionButton
+            icon={<Download className="h-6 w-6" />}
+            items={[
+              {
+                label: 'Relatório de Vendas',
+                onClick: () => handleGenerateReport('vendas'),
+                icon: <ShoppingCart className="h-4 w-4" />
+              },
+              {
+                label: 'Relatório de Produtos',
+                onClick: () => handleGenerateReport('produtos'),
+                icon: <Package className="h-4 w-4" />
+              },
+              {
+                label: 'Relatório de Clientes',
+                onClick: () => handleGenerateReport('clientes'),
+                icon: <Users className="h-4 w-4" />
+              },
+              {
+                label: 'Relatório de Estoque',
+                onClick: () => handleGenerateReport('estoque'),
+                icon: <Package className="h-4 w-4" />
+              }
+            ]}
+            isLoading={isGeneratingReport}
+            position="bottom-right"
+          />
         </main>
       </div>
     </div>

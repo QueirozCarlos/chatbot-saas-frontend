@@ -7,21 +7,27 @@ import NewSaleModal from '../components/NewSaleModal';
 import ReportsModal from '../components/ReportsModal';
 import CustomerManagementModal from '../components/CustomerManagementModal';
 import QuickActions from '../components/QuickActions';
-import { api } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 interface StatCardProps {
   title: string;
   value: string;
   icon: React.ReactNode;
   description: string;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  quantity: number;
-  price: number;
-  category: string;
 }
 
 function StatCard({ title, value, icon, description }: StatCardProps) {
@@ -41,7 +47,9 @@ function StatCard({ title, value, icon, description }: StatCardProps) {
   );
 }
 
-export default function Home() {
+const Home: React.FC = () => {
+  const { api, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
@@ -50,34 +58,60 @@ export default function Home() {
   const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isHovering) {
-      setIsSidebarOpen(true);
-      if (hoverTimeout) {
-        clearTimeout(hoverTimeout);
-      }
-    } else {
-      const timeout = window.setTimeout(() => {
-        setIsSidebarOpen(false);
-      }, 300); // Delay before closing
-      setHoverTimeout(timeout);
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
     }
+    fetchProducts();
+  }, [isAuthenticated, navigate]);
 
-    return () => {
-      if (hoverTimeout) {
-        clearTimeout(hoverTimeout);
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get('/categories');
+        if (response.data && Array.isArray(response.data)) {
+          setCategories(response.data);
+        } else {
+          console.error('Dados de categorias inválidos:', response.data);
+          setCategories([]);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar categorias:', err);
+        setCategories([]);
       }
     };
-  }, [isHovering]);
 
-  const handleAddProduct = async (newProduct: Omit<Product, 'id'>) => {
+    fetchCategories();
+  }, []);
+
+  const fetchProducts = async () => {
     try {
-      const response = await api.post('/products', newProduct);
+      setIsLoading(true);
+      const response = await api.get('/products');
+      setProducts(response.data);
+      setError(null);
+    } catch (error) {
+      console.error('Erro ao buscar produtos:', error);
+      setError('Erro ao carregar produtos. Por favor, tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddProduct = async (productData: Omit<Product, 'id'>) => {
+    try {
+      const response = await api.post('/api/products', productData);
       setProducts([...products, response.data]);
       setIsNewProductModalOpen(false);
-    } catch (err) {
-      console.error('Error adding product:', err);
+      setError(null);
+    } catch (error) {
+      console.error('Erro ao adicionar produto:', error);
+      setError('Erro ao adicionar produto. Por favor, tente novamente.');
     }
   };
 
@@ -95,6 +129,14 @@ export default function Home() {
     }
   };
 
+  if (!isAuthenticated) {
+    return null; // O redirecionamento será tratado pelo useEffect
+  }
+
+  if (isLoading) {
+    return <div>Carregando...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
       <Sidebar 
@@ -111,6 +153,7 @@ export default function Home() {
               <div className="flex items-center">
                 <button
                   id="menu-button"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   onMouseEnter={() => setIsHovering(true)}
                   onMouseLeave={() => setIsHovering(false)}
                   className="fixed left-0 top-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-50"
@@ -154,6 +197,35 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Products List */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Produtos</h2>
+              {isLoading ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-500 dark:text-gray-400">Carregando produtos...</p>
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-500 dark:text-gray-400">Nenhum produto cadastrado</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {products.map((product) => (
+                    <div key={product.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{product.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">R$ {product.price.toFixed(2)}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Categoria: {product.category}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Recent Activity */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Atividades Recentes</h2>
@@ -224,7 +296,8 @@ export default function Home() {
       <NewProductModal
         isOpen={isNewProductModalOpen}
         onClose={() => setIsNewProductModalOpen(false)}
-        onSave={handleAddProduct}
+        onAddProduct={handleAddProduct}
+        categories={categories}
       />
 
       <NewSaleModal
@@ -246,4 +319,6 @@ export default function Home() {
       <QuickActions />
     </div>
   );
-}
+};
+
+export default Home;

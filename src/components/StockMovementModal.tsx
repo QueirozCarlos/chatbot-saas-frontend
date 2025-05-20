@@ -4,9 +4,9 @@ import { X } from 'lucide-react';
 interface Product {
   id: number;
   name: string;
-  quantity: number;
+  description: string;
   price: number;
-  category: string;
+  stockQuantity: number;
 }
 
 interface StockMovement {
@@ -112,7 +112,7 @@ export default function StockMovementModal({ isOpen, onClose, onSave, products }
               <option value="">Selecione um produto</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
-                  {product.name} (Estoque: {product.quantity})
+                  {product.name} (Estoque: {product.stockQuantity})
                 </option>
               ))}
             </select>

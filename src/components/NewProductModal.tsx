@@ -1,28 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
-interface Category {
+interface Product {
   id: number;
   name: string;
+  description: string;
+  price: number;
+  stockQuantity: number;
+  category: string;
 }
 
 interface NewProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (product: {
-    name: string;
-    quantity: number;
-    price: number;
-    category: string;
-  }) => void;
-  categories: Category[];
+  onSave: (product: Omit<Product, 'id'> | Product) => void;
+  initialProduct?: Product | null;
 }
 
-export default function NewProductModal({ isOpen, onClose, onSave, categories }: NewProductModalProps) {
-  const [name, setName] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [price, setPrice] = useState(0);
-  const [category, setCategory] = useState('');
+export default function NewProductModal({ isOpen, onClose, onSave, initialProduct }: NewProductModalProps) {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    category: '',
+    price: '',
+    stockQuantity: '',
+  });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
@@ -40,18 +43,78 @@ export default function NewProductModal({ isOpen, onClose, onSave, categories }:
     };
   }, [isOpen, onClose]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (initialProduct) {
+      setFormData({
+        name: initialProduct.name,
+        description: initialProduct.description || '',
+        category: initialProduct.category,
+        price: initialProduct.price.toString(),
+        stockQuantity: initialProduct.stockQuantity.toString(),
+      });
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        category: '',
+        price: '',
+        stockQuantity: '',
+      });
+    }
+  }, [initialProduct]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      name,
-      quantity,
-      price,
-      category,
+    console.log('Dados do formulário:', formData);
+    
+    if (!formData.name || !formData.price || !formData.stockQuantity || !formData.category) {
+      alert('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+
+    const newProduct = {
+      ...(initialProduct ? { id: initialProduct.id } : {}),
+      name: formData.name,
+      description: formData.description,
+      category: formData.category.trim(),
+      price: parseFloat(formData.price),
+      stockQuantity: parseInt(formData.stockQuantity),
+    };
+
+    console.log('Novo produto a ser enviado:', newProduct);
+
+    setError(null);
+
+    if (!newProduct.name.trim()) {
+      setError('O nome do produto é obrigatório');
+      return;
+    }
+
+    if (!newProduct.category) {
+      setError('A categoria do produto é obrigatória');
+      return;
+    }
+
+    if (newProduct.price <= 0) {
+      setError('O preço deve ser maior que zero');
+      return;
+    }
+
+    if (newProduct.stockQuantity <= 0) {
+      setError('A quantidade em estoque deve ser maior que zero');
+      return;
+    }
+
+    onSave(newProduct);
+
+    // Limpar campos após salvar
+    setFormData({
+      name: '',
+      description: '',
+      category: '',
+      price: '',
+      stockQuantity: '',
     });
-    setName('');
-    setQuantity(1);
-    setPrice(0);
-    setCategory('');
   };
 
   if (!isOpen) return null;
@@ -76,8 +139,8 @@ export default function NewProductModal({ isOpen, onClose, onSave, categories }:
             </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
@@ -85,32 +148,23 @@ export default function NewProductModal({ isOpen, onClose, onSave, categories }:
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Categoria
+              Descrição
             </label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              required
-            >
-              <option value="">Selecione uma categoria</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.name}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Quantidade
+              Categoria
             </label>
             <input
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              min="1"
+              type="text"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
@@ -122,14 +176,34 @@ export default function NewProductModal({ isOpen, onClose, onSave, categories }:
             </label>
             <input
               type="number"
-              value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
               min="0"
               step="0.01"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               required
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Quantidade em Estoque
+            </label>
+            <input
+              type="number"
+              value={formData.stockQuantity}
+              onChange={(e) => setFormData({ ...formData, stockQuantity: e.target.value })}
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-500 text-sm mt-2">
+              {error}
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 mt-6">
             <button

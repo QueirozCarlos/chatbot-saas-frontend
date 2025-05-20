@@ -13,14 +13,10 @@ import StockMovementModal from '../components/StockMovementModal';
 interface Product {
   id: number;
   name: string;
-  quantity: number;
+  description: string;
   price: number;
+  stockQuantity: number;
   category: string;
-}
-
-interface Category {
-  id: number;
-  name: string;
 }
 
 interface StockMovement {
@@ -38,7 +34,6 @@ export default function Dashboard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
   const [isStockMovementModalOpen, setIsStockMovementModalOpen] = useState(false);
@@ -50,6 +45,8 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [lowStockAlert, setLowStockAlert] = useState<number>(5);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [totalStockValue, setTotalStockValue] = useState<number>(0);
   
   // Sorting states for products
   const [productSortField, setProductSortField] = useState<keyof Product>('name');
@@ -59,28 +56,53 @@ export default function Dashboard() {
     setIsLoading(true);
     setError(null);
     try {
+      console.log('Iniciando busca de produtos...');
       const response = await api.get('/products');
-      setProducts(response.data);
+      console.log('Resposta da API:', response.data);
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error('Dados inválidos recebidos da API:', response.data);
+        setError('Dados inválidos recebidos do servidor');
+        return;
+      }
+
+      // Mapear os dados da API para o formato esperado
+      const mappedProducts = response.data.map((product: any) => {
+        try {
+          const mappedProduct = {
+            id: product.id,
+            name: product.name || 'Sem nome',
+            description: product.description || '',
+            price: parseFloat(product.price) || 0,
+            stockQuantity: parseInt(product.stockQuantity || product.quantity) || 0,
+            category: product.category || product.categoria || 'Sem categoria'
+          };
+          console.log('Produto mapeado:', mappedProduct);
+          return mappedProduct;
+        } catch (err) {
+          console.error('Erro ao mapear produto:', product, err);
+          return null;
+        }
+      }).filter(Boolean);
+
+      console.log('Todos os produtos mapeados:', mappedProducts);
+      setProducts(mappedProducts);
+      
+      // Calcular valor total inicial
+      const initialTotal = calculateTotalStockValue(mappedProducts);
+      console.log('Valor total inicial:', initialTotal);
+      setTotalStockValue(initialTotal);
     } catch (err) {
+      console.error('Erro ao buscar produtos:', err);
       setError('Erro ao carregar produtos. Por favor, tente novamente.');
-      console.error('Error fetching products:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const response = await api.get('/categories');
-      setCategories(response.data);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
-
   useEffect(() => {
+    console.log('Dashboard montado, iniciando fetchProducts...');
     fetchProducts();
-    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -121,8 +143,38 @@ export default function Dashboard() {
 
   const handleAddProduct = async (newProduct: Omit<Product, 'id'>) => {
     try {
-      const response = await api.post('/products', newProduct);
-      setProducts([...products, response.data]);
+      console.log('Novo produto recebido do modal:', newProduct);
+      
+      // Preparar os dados para enviar à API
+      const productToSend = {
+        name: newProduct.name,
+        description: newProduct.description,
+        price: newProduct.price,
+        stockQuantity: newProduct.stockQuantity,
+        categoria: newProduct.category
+      };
+      
+      console.log('Produto a ser enviado para a API:', productToSend);
+      const response = await api.post('/products', productToSend);
+      console.log('Resposta da API ao adicionar produto:', response.data);
+      
+      // Garantir que a categoria esteja presente na resposta
+      const productWithCategory = {
+        ...response.data,
+        category: response.data.categoria || response.data.category || newProduct.category
+      };
+      console.log('Produto com categoria garantida:', productWithCategory);
+      
+      // Atualizar a lista de produtos com o novo produto
+      const updatedProducts = [...products, productWithCategory];
+      console.log('Lista de produtos atualizada:', updatedProducts);
+      setProducts(updatedProducts);
+      
+      // Calcular e atualizar o valor total
+      const newTotal = calculateTotalStockValue(updatedProducts);
+      console.log('Novo valor total após adicionar produto:', newTotal);
+      setTotalStockValue(newTotal);
+      
       setIsNewProductModalOpen(false);
     } catch (err) {
       console.error('Error adding product:', err);
@@ -139,11 +191,11 @@ export default function Dashboard() {
       const updatedProducts = products.map(product => {
         if (product.id === movement.productId) {
           const newQuantity = movement.type === 'entrada' 
-            ? product.quantity + movement.quantity
+            ? product.stockQuantity + movement.quantity
             : movement.type === 'saida'
-              ? product.quantity - movement.quantity
-              : product.quantity;
-          return { ...product, quantity: newQuantity };
+              ? product.stockQuantity - movement.quantity
+              : product.stockQuantity;
+          return { ...product, stockQuantity: newQuantity };
         }
         return product;
       });
@@ -189,6 +241,113 @@ export default function Dashboard() {
       ? Number(aValue) - Number(bValue)
       : Number(bValue) - Number(aValue);
   });
+
+  const handleEditProduct = async (updatedProduct: Product) => {
+    try {
+      console.log('Produto a ser editado:', updatedProduct);
+      
+      // Preparar os dados para enviar à API
+      const productToSend = {
+        name: updatedProduct.name,
+        description: updatedProduct.description,
+        price: updatedProduct.price,
+        stockQuantity: updatedProduct.stockQuantity,
+        categoria: updatedProduct.category
+      };
+      
+      console.log('Produto a ser enviado para a API:', productToSend);
+      const response = await api.put(`/products/${updatedProduct.id}`, productToSend);
+      console.log('Resposta da API ao editar produto:', response.data);
+      
+      // Garantir que a categoria esteja presente na resposta
+      const productWithCategory = {
+        ...response.data,
+        category: response.data.categoria || response.data.category || updatedProduct.category
+      };
+      
+      // Atualizar a lista de produtos
+      const updatedProducts = products.map(product => 
+        product.id === updatedProduct.id ? productWithCategory : product
+      );
+      console.log('Lista de produtos após edição:', updatedProducts);
+      setProducts(updatedProducts);
+      
+      // Calcular e atualizar o valor total
+      const newTotal = calculateTotalStockValue(updatedProducts);
+      console.log('Novo valor total após editar produto:', newTotal);
+      setTotalStockValue(newTotal);
+      
+      setEditingProduct(null);
+    } catch (err) {
+      console.error('Error editing product:', err);
+      setError('Erro ao editar produto. Por favor, tente novamente.');
+    }
+  };
+
+  const handleDeleteProduct = async (productId: number) => {
+    if (!window.confirm('Tem certeza que deseja excluir este produto?')) {
+      return;
+    }
+
+    try {
+      console.log('Excluindo produto:', productId);
+      await api.delete(`/products/${productId}`);
+      
+      // Atualizar a lista de produtos
+      const updatedProducts = products.filter(product => product.id !== productId);
+      console.log('Lista de produtos após exclusão:', updatedProducts);
+      setProducts(updatedProducts);
+      
+      // Calcular e atualizar o valor total
+      const newTotal = calculateTotalStockValue(updatedProducts);
+      console.log('Novo valor total após excluir produto:', newTotal);
+      setTotalStockValue(newTotal);
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      setError('Erro ao excluir produto. Por favor, tente novamente.');
+    }
+  };
+
+  // Calcular o valor total em estoque
+  const calculateTotalStockValue = (products: Product[]) => {
+    try {
+      console.log('Calculando valor total para produtos:', products);
+      if (!products || !Array.isArray(products)) {
+        console.error('Lista de produtos inválida:', products);
+        return 0;
+      }
+
+      const total = products.reduce((sum, product) => {
+        try {
+          const price = parseFloat(product.price.toString()) || 0;
+          const quantity = parseInt(product.stockQuantity.toString()) || 0;
+          const productValue = price * quantity;
+          console.log(`Produto: ${product.name}, Preço: ${price}, Quantidade: ${quantity}, Valor: ${productValue}`);
+          return sum + productValue;
+        } catch (err) {
+          console.error('Erro ao calcular valor do produto:', product, err);
+          return sum;
+        }
+      }, 0);
+
+      console.log('Valor total calculado:', total);
+      return total;
+    } catch (err) {
+      console.error('Erro ao calcular valor total:', err);
+      return 0;
+    }
+  };
+
+  // Atualizar o valor total em estoque sempre que os produtos mudarem
+  useEffect(() => {
+    if (products.length > 0) {
+      const total = calculateTotalStockValue(products);
+      console.log('Atualizando valor total:', total);
+      setTotalStockValue(total);
+    } else {
+      setTotalStockValue(0);
+    }
+  }, [products]);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
@@ -238,9 +397,11 @@ export default function Dashboard() {
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Valor Total em Estoque</p>
                   <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {products.reduce((sum, product) => sum + (product.price * product.quantity), 0).toLocaleString('pt-BR', {
+                    {totalStockValue.toLocaleString('pt-BR', {
                       style: 'currency',
-                      currency: 'BRL'
+                      currency: 'BRL',
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
                     })}
                   </p>
                 </div>
@@ -252,7 +413,7 @@ export default function Dashboard() {
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Produtos com Estoque Baixo</p>
                   <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                    {products.filter(p => p.quantity <= lowStockAlert).length}
+                    {products.filter(p => p.stockQuantity <= lowStockAlert).length}
                   </p>
                 </div>
                 <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-500" />
@@ -334,7 +495,7 @@ export default function Dashboard() {
                     </th>
                     <th 
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                      onClick={() => handleProductSort('quantity')}
+                      onClick={() => handleProductSort('stockQuantity')}
                     >
                       <div className="flex items-center">
                         Quantidade
@@ -359,7 +520,7 @@ export default function Dashboard() {
                   {sortedProducts.map((product) => (
                     <tr 
                       key={product.id}
-                      className={product.quantity <= lowStockAlert ? 'bg-red-50 dark:bg-red-900/20' : ''}
+                      className={product.stockQuantity <= lowStockAlert ? 'bg-red-50 dark:bg-red-900/20' : ''}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</div>
@@ -369,8 +530,8 @@ export default function Dashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900 dark:text-white">
-                          {product.quantity}
-                          {product.quantity <= lowStockAlert && (
+                          {product.stockQuantity}
+                          {product.stockQuantity <= lowStockAlert && (
                             <span className="ml-2 text-red-600 dark:text-red-400">
                               <AlertCircle className="h-4 w-4 inline" />
                             </span>
@@ -386,10 +547,16 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3">
+                        <button
+                          onClick={() => setEditingProduct(product)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
+                        >
                           Editar
                         </button>
-                        <button className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
+                        <button
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+                        >
                           Excluir
                         </button>
                       </td>
@@ -406,7 +573,13 @@ export default function Dashboard() {
         isOpen={isNewProductModalOpen}
         onClose={() => setIsNewProductModalOpen(false)}
         onSave={handleAddProduct}
-        categories={categories}
+      />
+
+      <NewProductModal
+        isOpen={!!editingProduct}
+        onClose={() => setEditingProduct(null)}
+        onSave={handleEditProduct}
+        initialProduct={editingProduct}
       />
 
       <StockMovementModal
