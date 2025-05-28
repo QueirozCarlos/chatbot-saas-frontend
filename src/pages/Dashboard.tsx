@@ -209,9 +209,40 @@ export default function Dashboard() {
   };
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchProducts();
-    setIsRefreshing(false);
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      
+      // Fetch products from API
+      const response = await api.get('/products');
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Dados inválidos recebidos do servidor');
+      }
+
+      // Map the API data to the expected format
+      const mappedProducts = response.data.map((product: any) => ({
+        id: product.id,
+        name: product.name || 'Sem nome',
+        description: product.description || '',
+        price: parseFloat(product.price) || 0,
+        stockQuantity: parseInt(product.stockQuantity || product.quantity) || 0,
+        category: product.category || product.categoria || 'Sem categoria'
+      }));
+
+      // Update products state
+      setProducts(mappedProducts);
+      
+      // Update total stock value
+      const newTotal = calculateTotalStockValue(mappedProducts);
+      setTotalStockValue(newTotal);
+      
+    } catch (err) {
+      console.error('Erro ao atualizar produtos:', err);
+      setError('Erro ao atualizar produtos. Por favor, tente novamente.');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const filteredProducts = products.filter(product =>
@@ -448,13 +479,6 @@ export default function Dashboard() {
               >
                 <Plus className="h-5 w-5 mr-2" />
                 Novo Produto
-              </button>
-              <button
-                onClick={() => setIsStockMovementModalOpen(true)}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-              >
-                <PackagePlus className="h-5 w-5 mr-2" />
-                Movimentação
               </button>
             </div>
           </div>

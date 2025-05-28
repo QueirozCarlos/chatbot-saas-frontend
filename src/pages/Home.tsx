@@ -11,11 +11,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 interface Product {
-  id: string;
+  id: number;
   name: string;
   description: string;
   price: number;
+  stockQuantity: number;
   category: string;
+  createdAt: string;
 }
 
 interface Category {
@@ -23,29 +25,31 @@ interface Category {
   name: string;
 }
 
+interface Sale {
+  id: number;
+  totalValue: number;
+  saleDate: string;
+}
+
 interface StatCardProps {
   title: string;
-  value: string;
+  value: string | number;
   icon: React.ReactNode;
   description: string;
 }
 
-function StatCard({ title, value, icon, description }: StatCardProps) {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-      <div className="flex items-center">
-        <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900">
-          {icon}
-        </div>
-        <div className="ml-4">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
-          <p className="text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
-          <p className="text-sm text-gray-600 dark:text-gray-300">{description}</p>
-        </div>
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon, description }) => (
+  <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
+        <p className="text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{description}</p>
       </div>
+      {icon}
     </div>
-  );
-}
+  </div>
+);
 
 const Home: React.FC = () => {
   const { api, isAuthenticated } = useAuth();
@@ -59,8 +63,11 @@ const Home: React.FC = () => {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentSalesPage, setCurrentSalesPage] = useState(1);
+  const salesPerPage = 5;
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -68,6 +75,7 @@ const Home: React.FC = () => {
       return;
     }
     fetchProducts();
+    fetchSales();
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
@@ -93,13 +101,29 @@ const Home: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await api.get('/products');
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Dados inválidos recebidos do servidor');
+      }
       setProducts(response.data);
       setError(null);
-    } catch (error) {
-      console.error('Erro ao buscar produtos:', error);
+    } catch (err) {
+      console.error('Erro ao buscar produtos:', err);
       setError('Erro ao carregar produtos. Por favor, tente novamente.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSales = async () => {
+    try {
+      const response = await api.get('/sales');
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Dados de vendas inválidos recebidos do servidor');
+      }
+      setSales(response.data);
+    } catch (err) {
+      console.error('Erro ao buscar vendas:', err);
+      setError('Erro ao carregar vendas. Por favor, tente novamente.');
     }
   };
 
@@ -129,6 +153,66 @@ const Home: React.FC = () => {
     }
   };
 
+  const getProductsAddedToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return products.filter(product => {
+      const productDate = new Date(product.createdAt);
+      return productDate >= today;
+    }).length;
+  };
+
+  const calculateMonthlySales = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Filtra vendas do mês atual
+    const currentMonthSales = sales.filter(sale => {
+      const saleDate = new Date(sale.saleDate);
+      return saleDate.getMonth() === currentMonth && saleDate.getFullYear() === currentYear;
+    });
+
+    // Filtra vendas do mês anterior
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const lastMonthSales = sales.filter(sale => {
+      const saleDate = new Date(sale.saleDate);
+      return saleDate.getMonth() === lastMonth && saleDate.getFullYear() === lastMonthYear;
+    });
+
+    // Calcula total do mês atual
+    const currentMonthTotal = currentMonthSales.reduce((sum, sale) => sum + sale.totalValue, 0);
+
+    // Calcula total do mês anterior
+    const lastMonthTotal = lastMonthSales.reduce((sum, sale) => sum + sale.totalValue, 0);
+
+    // Calcula a porcentagem de crescimento
+    let growthPercentage = 0;
+    if (lastMonthTotal > 0) {
+      growthPercentage = ((currentMonthTotal - lastMonthTotal) / lastMonthTotal) * 100;
+    } else if (currentMonthTotal > 0) {
+      growthPercentage = 100; // Se não havia vendas no mês anterior, mas há neste mês
+    }
+
+    return {
+      currentMonthTotal,
+      growthPercentage
+    };
+  };
+
+  // Calcular índices para paginação das vendas
+  const indexOfLastSale = currentSalesPage * salesPerPage;
+  const indexOfFirstSale = indexOfLastSale - salesPerPage;
+  const currentSales = sales.slice(indexOfFirstSale, indexOfLastSale);
+  const totalSalesPages = Math.ceil(sales.length / salesPerPage);
+
+  // Função para mudar página das vendas
+  const handleSalesPageChange = (pageNumber: number) => {
+    setCurrentSalesPage(pageNumber);
+  };
+
   if (!isAuthenticated) {
     return null; // O redirecionamento será tratado pelo useEffect
   }
@@ -151,6 +235,16 @@ const Home: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center">
+
+              {/* <button
+                  id="menu-button"
+                  onMouseEnter={() => setIsHovering(true)}
+                  onMouseLeave={() => setIsHovering(false)}
+                  className="fixed left-0 top-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-50"
+                  aria-label={isSidebarOpen ? 'Fechar menu' : 'Abrir menu'}
+                >
+                  <SidebarSimple className="h-6 w-6 text-gray-600 dark:text-gray-300" weight="duotone" />
+                </button> */}
                 <button
                   id="menu-button"
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -168,19 +262,27 @@ const Home: React.FC = () => {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {error && (
+            <div className="mb-8 bg-red-50 dark:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-md p-4">
+              <p className="text-red-700 dark:text-red-200">{error}</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
               title="Total de Produtos"
-              value="248"
+              value={products.length}
               icon={<Package className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
-              description="12 produtos adicionados hoje"
+              description={`${getProductsAddedToday()} produtos adicionados hoje`}
             />
             <StatCard
               title="Vendas Mensais"
-              value="R$ 45.680,00"
+              value={calculateMonthlySales().currentMonthTotal.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+              })}
               icon={<TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />}
-              description="15% acima do mês anterior"
+              description={`${calculateMonthlySales().growthPercentage.toFixed(1)}% ${calculateMonthlySales().growthPercentage >= 0 ? 'acima' : 'abaixo'} do mês anterior`}
             />
             <StatCard
               title="Clientes Ativos"
@@ -288,6 +390,72 @@ const Home: React.FC = () => {
                   </span>
                 </button>
               </div>
+            </div>
+
+            {/* Vendas Recentes */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Vendas Recentes</h2>
+                <button
+                  onClick={() => navigate('/reports')}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                >
+                  Ver todas
+                </button>
+              </div>
+              <div className="space-y-4">
+                {currentSales.map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0 last:pb-0">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{sale.productName}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {new Date(sale.saleDate).toLocaleDateString('pt-BR')} • {sale.quantity} unidades
+                      </p>
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Paginação das Vendas */}
+              {totalSalesPages > 1 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Mostrando {indexOfFirstSale + 1} a {Math.min(indexOfLastSale, sales.length)} de {sales.length} vendas
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleSalesPageChange(currentSalesPage - 1)}
+                      disabled={currentSalesPage === 1}
+                      className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Anterior
+                    </button>
+                    {Array.from({ length: totalSalesPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handleSalesPageChange(page)}
+                        className={`px-3 py-1 rounded-md text-sm font-medium ${
+                          currentSalesPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => handleSalesPageChange(currentSalesPage + 1)}
+                      disabled={currentSalesPage === totalSalesPages}
+                      className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>

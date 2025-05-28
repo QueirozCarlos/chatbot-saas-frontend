@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { deleteProduct, updateProduct, createStockMovement } from '../services/api';
+import { deleteProduct, updateProduct } from '../services/api';
 import EditProductModal from './EditProductModal';
-import StockMovementModal from './StockMovementModal';
 
 interface Product {
   id: number;
@@ -19,7 +18,6 @@ interface ProductListProps {
 const ProductList: React.FC<ProductListProps> = ({ products, onProductUpdate }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleEdit = (product: Product) => {
@@ -38,11 +36,6 @@ const ProductList: React.FC<ProductListProps> = ({ products, onProductUpdate }) 
         console.error('Erro ao excluir produto:', err);
       }
     }
-  };
-
-  const handleStockMovement = (product: Product) => {
-    setSelectedProduct(product);
-    setIsStockModalOpen(true);
   };
 
   const handleSaveEdit = async (updatedProduct: Product) => {
@@ -85,12 +78,6 @@ const ProductList: React.FC<ProductListProps> = ({ products, onProductUpdate }) 
                 Editar
               </button>
               <button
-                onClick={() => handleStockMovement(product)}
-                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-              >
-                Movimentar Estoque
-              </button>
-              <button
                 onClick={() => handleDelete(product.id)}
                 className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
               >
@@ -109,28 +96,6 @@ const ProductList: React.FC<ProductListProps> = ({ products, onProductUpdate }) 
             setSelectedProduct(null);
           }}
           onSave={handleSaveEdit}
-        />
-      )}
-
-      {isStockModalOpen && selectedProduct && (
-        <StockMovementModal
-          isOpen={isStockModalOpen}
-          onClose={() => {
-            setIsStockModalOpen(false);
-            setSelectedProduct(null);
-          }}
-          onSave={async (movement) => {
-            try {
-              await createStockMovement(movement);
-              await onProductUpdate();
-              setIsStockModalOpen(false);
-              setSelectedProduct(null);
-            } catch (err) {
-              setError('Erro ao movimentar estoque. Por favor, tente novamente.');
-              console.error('Erro ao movimentar estoque:', err);
-            }
-          }}
-          products={[selectedProduct]}
         />
       )}
     </div>

@@ -44,6 +44,8 @@ export default function Sales() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isCancelling, setIsCancelling] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20; // Alterado para 20 itens por página
 
   useEffect(() => {
     fetchSales();
@@ -212,6 +214,12 @@ export default function Sales() {
     }
   };
 
+  // Calcular índices para paginação
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredSales.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Toaster position="top-right" />
@@ -337,124 +345,171 @@ export default function Sales() {
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('saleDate')}
-                      >
-                        <div className="flex items-center">
-                          Data
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('customerName')}
-                      >
-                        <div className="flex items-center">
-                          Cliente
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('sellerName')}
-                      >
-                        <div className="flex items-center">
-                          Vendedor
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('productName')}
-                      >
-                        <div className="flex items-center">
-                          Produto
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('quantity')}
-                      >
-                        <div className="flex items-center">
-                          Quantidade
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
-                        onClick={() => handleSort('totalValue')}
-                      >
-                        <div className="flex items-center">
-                          Total
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                        </div>
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredSales.map((sale) => (
-                      <tr key={sale.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-gray-300">
-                            {new Date(sale.saleDate).toLocaleDateString('pt-BR')}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('saleDate')}
+                        >
+                          <div className="flex items-center">
+                            Data
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'saleDate' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-gray-300">
-                            {sale.customerName}
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('customerName')}
+                        >
+                          <div className="flex items-center">
+                            Cliente
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'customerName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-gray-300">
-                            {sale.sellerName}
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('sellerName')}
+                        >
+                          <div className="flex items-center">
+                            Vendedor
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'sellerName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-gray-300">
-                            {sale.productName}
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('productName')}
+                        >
+                          <div className="flex items-center">
+                            Produto
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'productName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-gray-300">
-                            {sale.quantity}
+                        </th>
+                        <th 
+                          className="text-right text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('quantity')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Quantidade
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'quantity' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-300">
-                            {sale.totalValue.toLocaleString('pt-BR', {
-                              style: 'currency',
-                              currency: 'BRL'
-                            })}
+                        </th>
+                        <th 
+                          className="text-right text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('totalValue')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Total
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'totalValue' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button 
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 mr-3"
-                            onClick={() => {/* TODO: Implementar detalhes */}}
-                          >
-                            Detalhes
-                          </button>
-                          <button 
-                            className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
-                            onClick={() => handleCancelSale(sale.id)}
-                            disabled={isCancelling === sale.id || sale.status === 'CANCELED'}
-                          >
-                            {isCancelling === sale.id ? 'Cancelando...' : 'Cancelar'}
-                          </button>
-                        </td>
+                        </th>
+                        <th className="text-right text-sm font-medium text-gray-500 dark:text-gray-400 pb-3">
+                          Ações
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {currentItems.map((sale) => (
+                        <tr key={sale.id} className="border-t border-gray-200 dark:border-gray-700">
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">
+                            {new Date(sale.saleDate).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.customerName}</td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.sellerName}</td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.productName}</td>
+                          <td className="py-3 text-sm text-right text-gray-900 dark:text-gray-300">{sale.quantity}</td>
+                          <td className="py-3 text-sm text-right text-gray-900 dark:text-gray-300">
+                            {sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                          <td className="py-3 text-sm text-right">
+                            <button
+                              onClick={() => {/* TODO: Implementar detalhes */}}
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 mr-3"
+                            >
+                              Detalhes
+                            </button>
+                            <button 
+                              className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                              onClick={() => handleCancelSale(sale.id)}
+                              disabled={isCancelling === sale.id || sale.status === 'CANCELED'}
+                            >
+                              {isCancelling === sale.id ? 'Cancelando...' : 'Cancelar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filteredSales.length)} de {filteredSales.length} vendas
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Anterior
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

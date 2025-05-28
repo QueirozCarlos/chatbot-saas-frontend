@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart, LineChart, PieChart, Download, Package, Users, ShoppingCart, ArrowUpDown } from 'lucide-react';
+import { BarChart, LineChart, PieChart, Download, Package, Users, ShoppingCart, ArrowUpDown, FileText, TrendingUp, BarChart2 } from 'lucide-react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import Sidebar from '../components/Sidebar';
-import { api } from '../contexts/AuthContext';
+import ReportsModal from '../components/ReportsModal';
+import { api, useAuth } from '../contexts/AuthContext';
 import FloatActionButton from '../components/FloatActionButton';
 import { salesService, Sale } from '../services/salesService';
 import { toast } from 'react-hot-toast';
@@ -36,16 +37,20 @@ function ReportCard({ title, value, icon, trend }: ReportCardProps) {
   );
 }
 
-export default function Reports() {
+const Reports: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
   const [sales, setSales] = useState<Sale[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<keyof Sale>('saleDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [currentTopProductsPage, setCurrentTopProductsPage] = useState(1);
+  const itemsPerPage = 10;
+  const topProductsPerPage = 5;
 
   useEffect(() => {
     fetchSales();
@@ -69,33 +74,18 @@ export default function Reports() {
   useEffect(() => {
     if (isHovering) {
       setIsSidebarOpen(true);
-      if (hoverTimeout) {
-        clearTimeout(hoverTimeout);
-      }
     } else {
-      const timeout = window.setTimeout(() => {
-        setIsSidebarOpen(false);
-      }, 300); // Delay before closing
-      setHoverTimeout(timeout);
+      setIsSidebarOpen(false);
     }
-
-    return () => {
-      if (hoverTimeout) {
-        clearTimeout(hoverTimeout);
-      }
-    };
   }, [isHovering]);
 
   const handleGenerateReport = async (type: string) => {
     try {
-      setIsGeneratingReport(true);
       // TODO: Implement report generation logic
       toast.success('Relatório gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       toast.error('Erro ao gerar relatório. Por favor, tente novamente.');
-    } finally {
-      setIsGeneratingReport(false);
     }
   };
 
@@ -207,6 +197,32 @@ export default function Reports() {
 
   const averageTicketChange = calculateAverageTicketChange();
 
+  // Calcular índices para paginação
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = sortedSales.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedSales.length / itemsPerPage);
+
+  // Calcular índices para paginação dos produtos mais vendidos
+  const indexOfLastTopProduct = currentTopProductsPage * topProductsPerPage;
+  const indexOfFirstTopProduct = indexOfLastTopProduct - topProductsPerPage;
+  const currentTopProducts = sales.slice(indexOfFirstTopProduct, indexOfLastTopProduct);
+  const totalTopProductsPages = Math.ceil(sales.length / topProductsPerPage);
+
+  // Função para mudar de página
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // Função para mudar página dos produtos mais vendidos
+  const handleTopProductsPageChange = (pageNumber: number) => {
+    setCurrentTopProductsPage(pageNumber);
+  };
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
       <Sidebar 
@@ -223,6 +239,7 @@ export default function Reports() {
               <div className="flex items-center">
                 <button
                   id="menu-button"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                   onMouseEnter={() => setIsHovering(true)}
                   onMouseLeave={() => setIsHovering(false)}
                   className="fixed left-0 top-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-50"
@@ -230,6 +247,7 @@ export default function Reports() {
                 >
                   <SidebarSimple className="h-6 w-6 text-gray-600 dark:text-gray-300" weight="duotone" />
                 </button>
+                <FileText className="h-8 w-8 text-blue-600 dark:text-blue-500 ml-2" />
                 <h1 className="ml-3 text-2xl font-bold text-gray-900 dark:text-white">Relatórios</h1>
               </div>
             </div>
@@ -281,104 +299,144 @@ export default function Reports() {
               {/* Sales by Period */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Vendas por Período</h2>
-                <table className="min-w-full">
-                  <thead>
-                    <tr>
-                      <th 
-                        className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                        onClick={() => handleSort('saleDate')}
-                      >
-                        <div className="flex items-center">
-                          Data
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                          {sortField === 'saleDate' && (
-                            <span className="ml-1 text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                        onClick={() => handleSort('productName')}
-                      >
-                        <div className="flex items-center">
-                          Produto
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                          {sortField === 'productName' && (
-                            <span className="ml-1 text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                        onClick={() => handleSort('sellerName')}
-                      >
-                        <div className="flex items-center">
-                          Vendedor
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                          {sortField === 'sellerName' && (
-                            <span className="ml-1 text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                        onClick={() => handleSort('customerName')}
-                      >
-                        <div className="flex items-center">
-                          Cliente
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                          {sortField === 'customerName' && (
-                            <span className="ml-1 text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                      <th 
-                        className="text-right text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
-                        onClick={() => handleSort('totalValue')}
-                      >
-                        <div className="flex items-center justify-end">
-                          Total
-                          <ArrowUpDown className="ml-1 h-4 w-4" />
-                          {sortField === 'totalValue' && (
-                            <span className="ml-1 text-xs">
-                              {sortDirection === 'asc' ? '↑' : '↓'}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedSales.map((sale) => (
-                      <tr key={sale.id} className="border-t border-gray-200 dark:border-gray-700">
-                        <td className="py-3 text-sm text-gray-900 dark:text-gray-300">
-                          {new Date(sale.saleDate).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.productName}</td>
-                        <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.sellerName}</td>
-                        <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.customerName}</td>
-                        <td className="py-3 text-sm text-right text-gray-900 dark:text-gray-300">
-                          {sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('saleDate')}
+                        >
+                          <div className="flex items-center">
+                            Data
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'saleDate' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('productName')}
+                        >
+                          <div className="flex items-center">
+                            Produto
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'productName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('sellerName')}
+                        >
+                          <div className="flex items-center">
+                            Vendedor
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'sellerName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="text-left text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('customerName')}
+                        >
+                          <div className="flex items-center">
+                            Cliente
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'customerName' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                        <th 
+                          className="text-right text-sm font-medium text-gray-500 dark:text-gray-400 pb-3 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                          onClick={() => handleSort('totalValue')}
+                        >
+                          <div className="flex items-center justify-end">
+                            Total
+                            <ArrowUpDown className="ml-1 h-4 w-4" />
+                            {sortField === 'totalValue' && (
+                              <span className="ml-1 text-xs">
+                                {sortDirection === 'asc' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </div>
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {currentItems.map((sale) => (
+                        <tr key={sale.id} className="border-t border-gray-200 dark:border-gray-700">
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">
+                            {new Date(sale.saleDate).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.productName}</td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.sellerName}</td>
+                          <td className="py-3 text-sm text-gray-900 dark:text-gray-300">{sale.customerName}</td>
+                          <td className="py-3 text-sm text-right text-gray-900 dark:text-gray-300">
+                            {sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, sortedSales.length)} de {sortedSales.length} vendas
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Anterior
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Top Products */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Produtos Mais Vendidos</h2>
                 <div className="space-y-4">
-                  {sales.map((sale) => (
+                  {currentTopProducts.map((sale) => (
                     <div key={sale.id} className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0 last:pb-0">
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{sale.productName}</p>
@@ -390,34 +448,142 @@ export default function Reports() {
                     </div>
                   ))}
                 </div>
+
+                {/* Paginação dos Produtos Mais Vendidos */}
+                {totalTopProductsPages > 1 && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Mostrando {indexOfFirstTopProduct + 1} a {Math.min(indexOfLastTopProduct, sales.length)} de {sales.length} produtos
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleTopProductsPageChange(currentTopProductsPage - 1)}
+                        disabled={currentTopProductsPage === 1}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Anterior
+                      </button>
+                      {Array.from({ length: totalTopProductsPages }, (_, i) => i + 1).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => handleTopProductsPageChange(page)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium ${
+                            currentTopProductsPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => handleTopProductsPageChange(currentTopProductsPage + 1)}
+                        disabled={currentTopProductsPage === totalTopProductsPages}
+                        className="px-3 py-1 rounded-md bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
 
-          <FloatActionButton
-            icon={<Download className="h-6 w-6" />}
-            items={[
-              {
-                label: 'Relatório de Vendas',
-                onClick: () => handleGenerateReport('vendas'),
-                icon: <ShoppingCart className="h-4 w-4" />
-              },
-              {
-                label: 'Relatório de Produtos',
-                onClick: () => handleGenerateReport('produtos'),
-                icon: <Package className="h-4 w-4" />
-              },
-              {
-                label: 'Relatório de Clientes',
-                onClick: () => handleGenerateReport('clientes'),
-                icon: <Users className="h-4 w-4" />
-              }
-            ]}
-            isLoading={isGeneratingReport}
-            position="bottom-right"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Relatório de Vendas */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <TrendingUp className="h-8 w-8 text-blue-600 dark:text-blue-500" />
+                  <h2 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">
+                    Relatório de Vendas
+                  </h2>
+                </div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Análise detalhada de vendas, incluindo total de vendas, produtos mais vendidos e tendências.
+              </p>
+              <button
+                onClick={() => setIsReportsModalOpen(true)}
+                className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Gerar Relatório
+              </button>
+            </div>
+
+            {/* Relatório de Produtos */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <Package className="h-8 w-8 text-green-600 dark:text-green-500" />
+                  <h2 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">
+                    Relatório de Produtos
+                  </h2>
+                </div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Inventário completo, status de estoque, produtos mais populares e análise de categorias.
+              </p>
+              <button
+                onClick={() => setIsReportsModalOpen(true)}
+                className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                Gerar Relatório
+              </button>
+            </div>
+
+            {/* Relatório de Clientes */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <Users className="h-8 w-8 text-purple-600 dark:text-purple-500" />
+                  <h2 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">
+                    Relatório de Clientes
+                  </h2>
+                </div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Análise de clientes, histórico de compras, segmentação e comportamento de compra.
+              </p>
+              <button
+                onClick={() => setIsReportsModalOpen(true)}
+                className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+              >
+                Gerar Relatório
+              </button>
+            </div>
+
+            {/* Relatório de Desempenho */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <BarChart2 className="h-8 w-8 text-orange-600 dark:text-orange-500" />
+                  <h2 className="ml-3 text-lg font-medium text-gray-900 dark:text-white">
+                    Relatório de Desempenho
+                  </h2>
+                </div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Métricas de desempenho, KPIs, análise de crescimento e projeções futuras.
+              </p>
+              <button
+                onClick={() => setIsReportsModalOpen(true)}
+                className="w-full flex items-center justify-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700"
+              >
+                Gerar Relatório
+              </button>
+            </div>
+          </div>
         </main>
       </div>
+
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+      />
     </div>
   );
-}
+};
+
+export default Reports;

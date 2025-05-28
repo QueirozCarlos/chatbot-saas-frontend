@@ -12,6 +12,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
 import ProtectedRoute from './components/ProtectedRoute';
+import Customers from './pages/Customers';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -72,6 +73,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Users />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/customers"
+              element={
+                <PrivateRoute>
+                  <Customers />
                 </PrivateRoute>
               }
             />
