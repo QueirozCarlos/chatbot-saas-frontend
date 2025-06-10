@@ -67,7 +67,7 @@ const ReportsModal: React.FC<ReportsModalProps> = ({ isOpen, onClose }) => {
             <button
               onClick={() => handleDownloadReport('sales')}
               disabled={isLoading}
-              className="w-full flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+              className="w-full flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/50 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center">
                 <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-3" />
@@ -86,7 +86,7 @@ const ReportsModal: React.FC<ReportsModalProps> = ({ isOpen, onClose }) => {
             <button
               onClick={() => handleDownloadReport('products')}
               disabled={isLoading}
-              className="w-full flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/50 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors"
+              className="w-full flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/50 rounded-lg hover:bg-green-100 dark:hover:bg-green-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center">
                 <Package className="h-6 w-6 text-green-600 dark:text-green-400 mr-3" />

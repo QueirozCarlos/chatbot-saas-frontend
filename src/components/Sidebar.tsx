@@ -41,7 +41,6 @@ export default function Sidebar({ isOpen, onClose, onHover }: SidebarProps) {
     { path: '/dashboard', icon: BarChart2, label: 'Dashboard' },
     { path: '/sales', icon: ShoppingCart, label: 'Vendas' },
     { path: '/reports', icon: FileText, label: 'Relatórios' },
-    { path: '/users', icon: Users, label: 'Usuários' },
     { path: '/settings', icon: Settings, label: 'Configurações' },
     { path: '/customers', icon: Users, label: 'Clientes' },
   ];

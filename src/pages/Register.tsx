@@ -11,7 +11,7 @@ export default function Register() {
     telefone: '',
     password: '',
     confirmPassword: '',
-    role: 'USER'
+    role: 'ADMIN'
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -21,7 +21,7 @@ export default function Register() {
   const { isDarkMode, toggleDarkMode } = useTheme();
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -53,7 +53,7 @@ export default function Register() {
 
     try {
       await register(formData.nomeCompleto, formData.email, formData.telefone, formData.password, formData.role);
-      navigate('/dashboard');
+      navigate('/login');
     } catch (err) {
       setError('Erro ao criar conta. Tente novamente.');
     } finally {
@@ -218,22 +218,6 @@ export default function Register() {
                     )}
                   </button>
                 </div>
-              </div>
-
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-white">
-                  Tipo de Usuário
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 bg-white/20 dark:bg-white/20 border border-gray-300/30 dark:border-white/30 rounded-md shadow-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-500/50 dark:focus:ring-white/50 focus:border-transparent"
-                >
-                  <option value="USER">USER</option>
-                  <option value="ADMIN">ADMIN</option>
-                </select>
               </div>
             </div>
 

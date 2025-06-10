@@ -10,7 +10,6 @@ import Dashboard from './pages/Dashboard';
 import Sales from './pages/Sales';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import Users from './pages/Users';
 import ProtectedRoute from './components/ProtectedRoute';
 import Customers from './pages/Customers';
 
@@ -65,14 +64,6 @@ function App() {
               element={
                 <PrivateRoute>
                   <Settings />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <PrivateRoute>
-                  <Users />
                 </PrivateRoute>
               }
             />

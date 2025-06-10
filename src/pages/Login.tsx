@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Package, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { Package, Sun, Moon, Eye, EyeOff, BarChart, LineChart } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,10 +31,14 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - Image */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 items-center justify-center relative overflow-hidden">
+      {/* Left Side - Image and Text */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 items-center justify-center relative overflow-hidden p-8">
         <div className="absolute inset-0 bg-black/30" />
-        <div className="relative z-10 text-white text-center p-8">
+        <div className="relative z-10 flex items-center justify-center text-white text-center flex-col">
+          <div className="flex items-end mb-4 space-x-2">
+            <BarChart className="h-24 w-24 text-blue-300 transform -rotate-12" strokeWidth={1.5} />
+            <LineChart className="h-28 w-28 text-blue-400" strokeWidth={1.5} />
+          </div>
           <h1 className="text-4xl font-bold mb-4">Bem-vindo ao ShopSync</h1>
           <p className="text-xl opacity-90">Transforme seu estoque com nossas soluções!</p>
         </div>
