@@ -58,7 +58,7 @@ O sistema ainda está em fase de desenvolvimento e aprimoramento contínuo — a
 
 1. **Clone o repositório:**
    ```bash
-   git clone https://github.com/QueirozCarlos/chatbot-saas-frontend.git
+   git clone https://github.com/QueirozCarlos/Shopsync-Frontend.git
    cd chatbot-saas-frontend
    ```
 2. **Instale as dependências:**
